@@ -51,18 +51,24 @@ func (w *MyWorker) requestJob() *Job {
 			Data: DataSpec{},
 		},
 	}
-	call("Coordinator.OfferJob", &args, &reply)
+	succ := call("Coordinator.OfferJob", &args, &reply)
+	if !succ {
+		log.Warnf("cannot rpc with coordinator when call OfferJob")
+	}
 	return &reply.Job
 }
 
-func (w *MyWorker) ackJob(job Job, resultFiles []string, err error) {
+func (w *MyWorker) ackJob(job Job, resultFiles map[int]string, err error) {
+	if err != nil {
+		job.Status = fmt.Errorf("%w, %w", StatusFail, err)
+	}
 	args := AckJobArg{
 		Job:         job,
 		ResultFiles: resultFiles,
-		Err:         err,
 	}
+	args.Job.Status = err
 	reply := AckJobReply{}
-	call("Coordinator.CollectIntermediate", &args, &reply)
+	call("Coordinator.CollectResult", &args, &reply)
 }
 
 func (w *MyWorker) run(MaxNoJob int) {
@@ -81,27 +87,36 @@ workloop:
 			break workloop
 		case MapType:
 			noJobCnt = 0
+			if job.Status != StatutPending {
+				log.Warnf("non pending job assigned, ignore.\n %v", *job)
+				continue
+			}
+			job.Status = StatusWorking
 			content, err := job.Data.ReadData()
 			if err != nil {
 				log.Warnf("fail to read data in map job %v, data %v", err, job.Data)
-				w.ackJob(*job, []string{}, err)
+				w.ackJob(*job, map[int]string{}, err)
 				break
 			}
 			intermediate := w.Mapf(job.Data.Filename, content)
 			filenames, err := job.writeIntermediate(intermediate, w.Name)
 			if err != nil {
 				log.Warnf("fail to write map result %v, data %v", err, job)
-				w.ackJob(*job, []string{}, err)
+				w.ackJob(*job, map[int]string{}, err)
 				break
 			}
 			w.ackJob(*job, filenames, nil)
 		case ReduceType:
 			noJobCnt = 0
-			noJobCnt = 0
+			if job.Status != StatutPending {
+				log.Warnf("non pending job assigned, ignore.\n %v", *job)
+				continue
+			}
+			job.Status = StatusWorking
 			content, err := job.Data.ReadData()
 			if err != nil {
 				log.Warnf("fail to read data in reduce job %v, data %v", err, job.Data)
-				w.ackJob(*job, []string{}, err)
+				w.ackJob(*job, map[int]string{}, err)
 				break
 			}
 			lines := strings.Split(content, "\n")
@@ -117,10 +132,10 @@ workloop:
 			resultFile, err := job.writeReduceResults(results, w.Name)
 			if err != nil {
 				log.Warnf("fail to write map result %v, data %v", err, job)
-				w.ackJob(*job, []string{}, err)
+				w.ackJob(*job, map[int]string{}, err)
 				break
 			}
-			w.ackJob(*job, []string{resultFile}, nil)
+			w.ackJob(*job, resultFile, nil)
 		}
 	}
 }

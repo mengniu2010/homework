@@ -26,8 +26,7 @@ type RequestJobReply struct {
 
 type AckJobArg struct {
 	Job         Job
-	ResultFiles []string
-	Err         error
+	ResultFiles map[int]string
 }
 
 type AckJobReply struct {
