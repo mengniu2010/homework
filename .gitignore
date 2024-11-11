@@ -1,0 +1,3 @@
+*.log
+6.824/src/main/mr-tmp
+6.824/src/main/mrsequential
