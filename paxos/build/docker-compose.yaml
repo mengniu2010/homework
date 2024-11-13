@@ -1,0 +1,38 @@
+version: "3.8"
+services:
+  paxos-0:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    command: /cmd/svr 0 paxos-0:2222 paxos-1:2222 paxos-2:2222
+    networks:
+      - paxos_net
+
+    volumes:
+      - ./docker-logs:/var/log/paxos
+  paxos-1:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    command: /cmd/svr 1 paxos-0:2222 paxos-1:2222 paxos-2:2222
+    # image: paxos:latest
+    networks:
+      - paxos_net
+
+    volumes:
+      - ./docker-logs:/var/log/paxos
+  paxos-2:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    command: /cmd/svr 2 paxos-0:2222 paxos-1:2222 paxos-2:2222
+    # image: paxos:latest
+    networks:
+      - paxos_net
+
+    volumes:
+      - ./docker-logs:/var/log/paxos
+networks:
+  paxos_net:
+
+
